@@ -1,4 +1,4 @@
-LAST_DIR=""
+
 
 function my_git_prompt() {
   tester=$(git rev-parse --git-dir 2> /dev/null) || return
@@ -71,17 +71,59 @@ function precmd() {
 # for i in {240..255}; do print -P "%F{$i}Color $i%f"; done
   # Se a pasta mudou desde a última vez...
   if [[ "$PWD" != "$LAST_DIR" ]]; then
-    echo -e "\n─────────────────────────────"  # Linha separadora
-    LAST_DIR="$PWD"                          # Atualiza o último diretório
+    # print -P "\n%F{124}:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::%f"
+    print -Pn "\n"
+
+    # Cores do arco-íris (R, Laranja, Amarelo, Verde, Azul, Anil, Violeta)
+    # local colors=(196 202 226 46 33 57 201 207) 
+    local colors=(120 118 82 10 76 70 64 28 22)
+
+    local total_length=80
+    local segments=${#colors[@]}
+    local per_segment=$(( total_length / segments ))
+print -P "%F{120}(^_^)"
+    for color in "${colors[@]}"; do
+      for ((i = 0; i < per_segment; i++)); do
+        print -Pn "%F{$color}━"
+      done
+    done
+    print -Pn "sizeOn/sizeOff"
+    print -P "%f"  # reset cor
+    LAST_DIR="$PWD"                          
   fi
 }
 
-function dir_info() {
-  local files=$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')
-  local dirs=$(find . -maxdepth 1 -type d | tail -n +2 | wc -l | tr -d ' ')
-  local size=$(du -sh . 2>/dev/null | cut -f1)
+LAST_DIR=""
+DIR_INFO_CACHE=""
+DIR_INFO_TIMESTAMP=0
+SHOW_DIR_INFO=false
 
-  echo "($files arquivos, $dirs pastas, $size)"
+function sizeinfo-on() {
+  export SHOW_DIR_INFO=true
+  echo "📁✅ SHOW SIZE FILES"
+}
+
+function sizeinfo-off() {
+  export SHOW_DIR_INFO=false
+  echo "📁🚫 HIDE SIZES FILES"
+}
+
+function dir_info() {
+  local now=$(date +%s)
+  if (( now - DIR_INFO_TIMESTAMP > 10 )); then
+    local files=$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')
+    local dirs=$(find . -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
+    
+  DIR_INFO_CACHE="$dirs %{\e[38;5;24m%}folders%{$reset_color%}, $files %{\e[38;5;24m%}files%{$reset_color%}"
+
+  if [[ "$SHOW_DIR_INFO" == true ]]; then
+    local size=$(du -sh . 2>/dev/null | cut -f1)
+    DIR_INFO_CACHE="$DIR_INFO_CACHE, $size"
+  fi
+
+    DIR_INFO_TIMESTAMP=$now
+  fi
+  echo "$DIR_INFO_CACHE"
 }
 
 
@@ -89,7 +131,7 @@ function dir_info() {
 local ret_status="%(?:%{$fg_bold[green]%}✓:%{$fg_bold[red]%}❌)%{$reset_color%}"
 
 
-PROMPT=$'\n$(_toolbox_prompt_info)$(ssh_connection)$(my_git_prompt)\n%{\e[1;33m%}📁 %~%{\e[0m%}\n[${ret_status}] %# '
+PROMPT=$'\n$(_toolbox_prompt_info)$(ssh_connection)$(my_git_prompt)\n%{\e[1;33m%} 📁 %~%{\e[0m%} $(dir_info)\n[${ret_status}] %# '
 
 
 # ✅❌
