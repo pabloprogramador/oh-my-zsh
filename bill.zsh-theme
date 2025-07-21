@@ -149,6 +149,15 @@ ZSH_THEME_GIT_PROMPT_SUFFIX=" $fg_bold[white]›%{$reset_color%}"
 # fzf  --keep-right -m --style=full --ignore-case --header-border=rounded --footer-border=rounded --color=fg+:bright-green,hl+:bright-yellow,marker:bright-green,pointer:bright-red --ansi --preview-window=right:60% --marker=✔ --bind=ctrl-s:toggle-sort --preview "bat --style=numbers --color=always {}"
 #!/bin/bash
 fn() {
+FZF_DEFAULT_OPTS=$FZF_DEFAULT_OPTS_2
+
+  if [ -z "$1" ]; then
+  fzf  --keep-right -m --style=full --ignore-case --header-border=rounded --footer-border=rounded --color=$FZF_DEFAULT_OPTS_1 --ansi --preview-window=right:70% --marker=✔ \
+  --preview='bat --style=numbers --color=always {} || head -n 20 {}' \
+    --bind='ctrl-s:execute(code {} | echo {} | pbcopy | echo {}),enter:execute(open -R {} | echo {} | pbcopy | echo {}),ctrl-d:execute(osascript -e "tell app \"Finder\" to delete POSIX file \"$(realpath {})\"" 2>/dev/null)' \
+   --header="ENTER CTR+S CTRL+D"
+  return
+fi
   case "$1" in
   -new)
     # Ordena do mais novo para mais velho
@@ -177,7 +186,7 @@ fn() {
       }' |
       fzf -m --ansi \
         --preview='bat --style=numbers --color=always "$(echo {} | cut -d"|" -f3- | xargs)" || head -n 30 "$(echo {} | cut -d"|" -f3- | xargs)" || echo "🔒 Sem permissão para visualizar"' \
-        --color=fg+:white,bg+:black,hl+:bright-magenta,marker:yellow,pointer:white \
+        --color=$FZF_DEFAULT_OPTS_1 \
         --preview-window=right:40% \
         --bind=ctrl-s:toggle-sort \
         --marker="*" \
@@ -209,9 +218,9 @@ fn() {
 
         printf "%s%6s%s | %s\n", GRAY, hum, RESET, file
       }' |
-      fzf -m --ansi \
+      fzf --no-sort -m --ansi \
         --preview='bat --style=numbers --color=always "$(echo {} | cut -d"|" -f2- | xargs)" || head -n 30 "$(echo {} | cut -d"|" -f2- | xargs)" || echo "🔒 Sem permissão para visualizar"' \
-        --color=fg+:white,bg+:black,hl+:bright-magenta,marker:yellow,pointer:white \
+        --color=$FZF_DEFAULT_OPTS_1 \
         --preview-window=right:40% \
         --bind=ctrl-s:toggle-sort \
         --marker="*" \
@@ -222,45 +231,76 @@ fn() {
     fn -big | tac
     ;;
 
-  -az)
-    find . -type f | sort | fzf -m --ansi \
-      --preview='bat --style=numbers --color=always {} || head -n 30 {} || echo "🔒 Sem permissão para visualizar"' \
-      --color=fg+:white,bg+:black,hl+:bright-magenta,marker:yellow,pointer:white \
-      --preview-window=right:40% \
-      --bind=ctrl-s:toggle-sort \
-      --marker="*" \
-      --header="🔐 Arquivos em ordem alfabética A-Z" | pbcopy
-    ;;
+  -merge)
+    file=$(grep -rl '<<<<<<< HEAD' . 2>/dev/null | fzf \
+      --header="🧨 <ENTER> OPEN :|: <TAB> VS Code :|: <ESC> EXIT" \
+      --preview='bat --style=numbers --color=always {} || head -n 20 {}' \
+      --bind='tab:execute(code {} | echo {} | pbcopy | echo {}),enter:execute(open -R {} | echo {} | pbcopy | echo {})' \
+      --color=$FZF_DEFAULT_OPTS_1)
 
-  -za)
-    fn -az | tac
     ;;
 
   -commit)
     git log --oneline --decorate |
       fzf --ansi --preview='git show $(echo {} | cut -d" " -f1)' \
         --header="🔄 Commits - Enter para checkout" \
+        --color=$FZF_DEFAULT_OPTS_1 \
         --bind='enter:execute(git checkout $(echo {} | cut -d" " -f1))'
     ;;
 
   -branch)
     git branch | sed 's/^..//' |
       fzf --preview='git log -n 5 {}' \
+      --color=$FZF_DEFAULT_OPTS_1 \
         --header="🐝 Branches - Enter para checkout" \
         --bind='enter:execute(git checkout {})'
-    ;;
-
-  -del)
-    fzf -m --header="🗑️ Selecione arquivos ou pastas - Enter para mover para a Lixeira" \
-      --bind='enter:execute-silent(osascript -e "tell app \"Finder\" to delete POSIX file \"$(realpath {})\"" 2>/dev/null)+abort' \
-      --color=fg+:white,bg+:black,hl+:bright-red,marker:red,pointer:white
     ;;
 
   -kill)
     ps -eo pid,comm |
       fzf --header="☠ Processos - Enter para matar" \
-        --bind='enter:execute-silent(kill -9 {1})'
+      --color=$FZF_DEFAULT_OPTS_3 \
+      --bind='enter:execute-silent(kill -9 {1})'
     ;;
+
+  -nav)
+    nav_dir="."  # Começa no diretório atual
+while true; do
+  cd "$nav_dir" || break  # Vai até a pasta, se falhar sai do loop
+
+  selected=$(find . -maxdepth 1 -type d ! -name '.' \
+    | sed 's|^\./||' \
+    | sort \
+    | fzf --print-query --header="📁 ⏎: Entrar | .. Voltar | quit Sair"  \
+          --prompt="$PWD > " \
+          --color="$FZF_DEFAULT_OPTS_2")
+
+  key=$(printf '%s\n' "$selected" | head -n 1)
+  result=$(printf '%s\n' "$selected" | tail -n +2)
+echo $key
+echo $result
+  if [[ "$key" = ".." ]]; then
+    # Se não digitou nada, sobe uma pasta
+    nav_dir=$(dirname "$PWD")
+  elif [[ "$key" = "quit" ]]; then
+    echo "GAME OVER"
+    break
+  else
+    # Entra na pasta selecionada
+    nav_dir="$PWD/$result"
+  fi
+done
+;;
+
+-teste2)
+selected=$(fzf --print-query --header="Selecione múltiplos arquivos")
+key=$(printf '%s\n' "$selected" | head -n 1)
+result=$(printf '%s\n' "$selected" | tail -n +2)
+
+echo "Query: $key"
+echo "Selecionados:"
+echo "$result"
+;;
 
   -zip)
     timestamp=$(date +"%m-%d-%Y-%H-%M-%S")
@@ -268,6 +308,7 @@ fn() {
 
     files=$(fzf -m --read0 --print0 \
       --header="🗜️ Selecione arquivos - Enter para compactar com 7z em '$zipname'" \
+      --color=$FZF_DEFAULT_OPTS_2 \
       --preview='ls -lh {} || stat {}')
 
     if [ -z "$files" ]; then
@@ -283,7 +324,7 @@ fn() {
   -unzip)
     zipfile=$(find . -type f -name "*.zip" | fzf --header="📦 Selecione um arquivo .zip para descompactar" \
       --preview='7z l {}' \
-      --color=fg+:white,bg+:black,hl+:bright-cyan,marker:cyan,pointer:white)
+      --color=$FZF_DEFAULT_OPTS_2)
 
     if [ -z "$zipfile" ]; then
       echo "❌ Nenhum arquivo .zip selecionado."
@@ -301,17 +342,43 @@ fn() {
 
     echo "✅ Arquivo '$zipfile' extraído para a pasta '$foldername'."
 
-    # Abre a pasta no Finder
-    open "$foldername"
+    # Prompt para abrir no Finder
+    echo -n "📂 Deseja abrir a pasta no Finder? [s/N] ➤ "
+    read -r resposta
 
+    if [[ "$resposta" =~ ^[sS]$ ]]; then
+      open "$foldername"
+      echo "📁 Finder aberto em '$foldername'."
+    else
+      echo "🛑 Pasta não aberta."
+    fi
     ;;
 
-  -code)
-    fzf --header="💻 Abrir com VS Code" --bind='enter:execute(code {})'
-    ;;
+  
+  # echo "📦 Tamanho: $(stat -f%z {} | awk '\''{ hum=$1; if(hum>=1073741824) hum=sprintf(\"%.1fG\",hum/1073741824); else if(hum>=1048576) hum=sprintf(\"%.1fM\",hum/1048576); else if(hum>=1024) hum=sprintf(\"%.1fK\",hum/1024); else hum=hum\"B\"; print hum }'\')"
+  #echo "🕒 Modificado: $(stat -f"%Sm" -t "%Y-%m-%d %H:%M:%S" {})"
+
+  -teste)
+ # temp = 'bat --style=numbers --color=always {} "$(awk -F '\'':::'\'' '\''{print \$2}'\'' <<<)" || head -n 30 {}';
+ find . -maxdepth 1 | while read -r file; do
+  echo "$(basename $file):$file"
+  done |
+  fzf --with-nth=1 --delimiter=":" --keep-right -m --style=full --ignore-case --header-border=rounded --footer-border=rounded --color=$FZF_DEFAULT_OPTS --ansi --preview-window=right:70% --marker=✔ --bind=ctrl-s:toggle-sort \
+  --preview='
+    filename=$(awk -F ":" "{print \$1}" <<< {})
+    filepath=$(awk -F ":" "{print \$2}" <<< {})
+    
+    echo "📁 : $filename"
+    echo "📁 : $filepath"
+    echo "───────────────────────────────────"
+    bat --wrap=character --paging=never --style=numbers --color=always "$filepath"
+  '
+  ;;
 
   -cache)
-    history | fzf --header="⏲ Comandos anteriores"
+    history | cut -c 8- | awk '!seen[$0]++' | fzf --header="⏲ Comandos anteriores" \
+    --color=$FZF_DEFAULT_OPTS_2 \
+    --bind="enter:execute(echo {} | pbcopy | echo {})+abort"
     ;;
 
   -help | *)
@@ -320,16 +387,63 @@ fn() {
     echo "  -old      Arquivos mais antigos"
     echo "  -big      Arquivos maiores"
     echo "  -small    Arquivos menores"
-    echo "  -az       Ordem alfabética A-Z"
-    echo "  -za       Ordem alfabética Z-A"
     echo "  -commit   Ver e checkout em commits"
     echo "  -branch   Alternar branches Git"
+    echo "  -merge    Mostra os arquivos com conflitos"
     echo "  -kill     Matar processo via fzf"
-    echo "  -del      Apaga arquivo ou pasta"
     echo "  -zip      Selecionar arquivos e zipar"
-    echo "  -code     Buscar e abrir código no VS Code"
+    echo "  -unzip    Descompactar"
     echo "  -cache    Histórico de comandos"
     echo "  -help     Mostrar esta ajuda"
     ;;
   esac
 }
+
+# 1. Dark — Visual Studio Code (Dark+ Style)
+FZF_DEFAULT_OPTS_1='
+fg:252,bg:235,
+fg+:15,bg+:237,
+hl:39,hl+:81,
+prompt:81,pointer:204,
+marker:110,spinner:39,
+info:250,header:60,
+border:238,query:81,gutter:235'
+
+# 2. High Contrast — Matrix Style (Green on Black)
+FZF_DEFAULT_OPTS_2='
+fg:46,bg:0,
+fg+:0,bg+:22,
+hl:201,hl+:231,
+prompt:bright-yellow,pointer:46,
+marker:196,spinner:231,
+info:118,header:28,
+border:22,query:118,gutter:0'
+
+# 3. Danger — Red & Yellow Warning Theme
+FZF_DEFAULT_OPTS_3='
+fg:white,bg:1,
+fg+:bright-red,bg+:bright-yellow,
+hl:208,hl+:black,
+prompt:bright-white,pointer:bright-white,
+marker:bright-red,spinner:white,
+border:196,query:226,gutter:1'
+
+# 4. Deep Blue — Navy Theme
+FZF_DEFAULT_OPTS_4='
+fg:153,bg:17,
+fg+:255,bg+:18,
+hl:81,hl+:117,
+prompt:39,pointer:123,
+marker:Yellow,spinner:87,
+info:189,header:24,
+border:Yellow,query:81,gutter:17'
+
+# 5. Soft Light — Pastel Yellow Theme
+FZF_DEFAULT_OPTS_5='
+fg:221,bg:235,
+fg+:234,bg+:187,
+hl:136,hl+:130,
+prompt:136,pointer:94,
+marker:130,spinner:180,
+info:172,header:229,
+border:180,query:130,gutter:254'
