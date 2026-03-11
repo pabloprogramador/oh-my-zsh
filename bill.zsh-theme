@@ -1,3 +1,5 @@
+// PARA COMPILAR: source ~/.zshrc
+
 function my_git_prompt() {
   tester=$(git rev-parse --git-dir 2>/dev/null) || return
 
@@ -152,13 +154,42 @@ fn() {
 FZF_DEFAULT_OPTS=$FZF_DEFAULT_OPTS_2
 
   if [ -z "$1" ]; then
-  fzf  --keep-right -m --style=full --ignore-case --header-border=rounded --footer-border=rounded --color=$FZF_DEFAULT_OPTS_1 --ansi --preview-window=right:70% --marker=✔ \
-  --preview='bat --style=numbers --color=always {} || head -n 20 {}' \
-    --bind='ctrl-s:execute(code {} | echo {} | pbcopy | echo {}),enter:execute(open -R {} | echo {} | pbcopy | echo {}),ctrl-d:execute(osascript -e "tell app \"Finder\" to delete POSIX file \"$(realpath {})\"" 2>/dev/null)' \
-   --header="ENTER CTR+S CTRL+D"
+  find . -maxdepth 1 | while read -r file; do
+  echo "$(basename $file):$file"
+  done |
+  fzf --with-nth=1 --delimiter=":" --keep-right -m --style=full --ignore-case --header-border=rounded --footer-border=rounded --color=$FZF_DEFAULT_OPTS --ansi --preview-window=right:70% --marker=✔ --bind=ctrl-s:toggle-sort \
+  --bind='ctrl-s:execute(code $(awk -F ":" "{print \$2}" <<< {}) | echo $(awk -F ":" "{print \$2}" <<< {}) | pbcopy | echo $(awk -F ":" "{print \$2}" <<< {})),enter:execute(open -R $(awk -F ":" "{print \$2}" <<< {}) | echo $(awk -F ":" "{print \$2}" <<< {}) | pbcopy | echo $(awk -F ":" "{print \$2}" <<< {})),ctrl-d:execute(osascript -e "tell app \"Finder\" to delete POSIX file \"$(realpath $(awk -F ":" "{print \$2}" <<< {}) )\"" 2>/dev/null)' \
+   --header="ENTER CTR+S CTRL+D" \
+  --preview='
+    filename=$(awk -F ":" "{print \$1}" <<< {})
+    filepath=$(awk -F ":" "{print \$2}" <<< {})
+    
+    echo "📁 : $filename"
+    echo "📁 : $filepath"
+    echo "───────────────────────────────────"
+    bat --wrap=character --paging=never --style=numbers --color=always "$filepath"
+  '
   return
 fi
   case "$1" in
+  -all)
+  find . | while read -r file; do
+  echo "$(basename $file):$file"
+  done |
+  fzf --with-nth=1 --delimiter=":" --keep-right -m --style=full --ignore-case --header-border=rounded --footer-border=rounded --color=$FZF_DEFAULT_OPTS --ansi --preview-window=right:70% --marker=✔ --bind=ctrl-s:toggle-sort \
+  --bind='ctrl-s:execute(code $(awk -F ":" "{print \$2}" <<< {}) | echo $(awk -F ":" "{print \$2}" <<< {}) | pbcopy | echo $(awk -F ":" "{print \$2}" <<< {})),enter:execute(open -R $(awk -F ":" "{print \$2}" <<< {}) | echo $(awk -F ":" "{print \$2}" <<< {}) | pbcopy | echo $(awk -F ":" "{print \$2}" <<< {})),ctrl-d:execute(osascript -e "tell app \"Finder\" to delete POSIX file \"$(realpath $(awk -F ":" "{print \$2}" <<< {}) )\"" 2>/dev/null)' \
+   --header="ENTER CTR+S CTRL+D" \
+  --preview='
+    filename=$(awk -F ":" "{print \$1}" <<< {})
+    filepath=$(awk -F ":" "{print \$2}" <<< {})
+    
+    echo "📁 : $filename"
+    echo "📁 : $filepath"
+    echo "───────────────────────────────────"
+    bat --wrap=character --paging=never --style=numbers --color=always "$filepath"
+  '
+  return
+  ;;
   -new)
     # Ordena do mais novo para mais velho
     find . -type f -exec stat -f "%m %z %N" {} + 2>/dev/null |
@@ -249,7 +280,8 @@ fi
     ;;
 
   -branch)
-    git branch | sed 's/^..//' |
+    git fetch --all
+    git branch -a| sed 's/^..//' |
       fzf --preview='git log -n 5 {}' \
       --color=$FZF_DEFAULT_OPTS_1 \
         --header="🐝 Branches - Enter para checkout" \
@@ -383,6 +415,7 @@ echo "$result"
 
   -help | *)
     echo -e "\n🔍  Comandos disponíveis no fn:\n"
+    echo "  -nav      Arquivos mais novos"
     echo "  -new      Arquivos mais novos"
     echo "  -old      Arquivos mais antigos"
     echo "  -big      Arquivos maiores"
