@@ -1,4 +1,6 @@
 // PARA COMPILAR: source ~/.zshrc
+// copiar para ls ~/.oh-my-zsh/custom/themes
+// ZSH_THEME="mortalscumbag"
 
 function my_git_prompt() {
   tester=$(git rev-parse --git-dir 2>/dev/null) || return
